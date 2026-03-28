@@ -452,7 +452,7 @@ function draw() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = "bold 22px 'Dancing Script', cursive";
     ctx.fillStyle = '#c2185b';
-    ctx.fillText('💔 The wedding is ruined!', W / 2, H / 2 - 18);
+    ctx.fillText('💔 Heartbreak strikes again!', W / 2, H / 2 - 18);
     ctx.font = "13px 'Playfair Display', serif";
     ctx.fillStyle = '#888';
     ctx.fillText(`Score: ${score}  •  Best: ${best}`, W / 2, H / 2 + 6);
@@ -463,7 +463,7 @@ function draw() {
 function die() {
   state = 'dead';
   if (score > best) { best = score; bestEl.textContent = best; }
-  msg.textContent = score > 40 ? '💍 So close to the altar!' : '🌸 Try again!';
+  msg.textContent = score > 40 ? '💍 So close! Try again!' : '🌸 Dodge the heartbreak!';
 }
 
 function startGame() {
