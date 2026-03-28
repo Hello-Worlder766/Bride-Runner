@@ -95,15 +95,15 @@ const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
 const bonusPop = document.getElementById('bonus-pop');
 
-const W = 600, H = 200;
+const W = 600, H = 260;
 canvas.width = W;
 canvas.height = H;
 
-const GROUND_Y  = H - 30;   // feet land here
-const NORMAL_H  = 46;
-const DUCK_H    = 26;
-const BRIDE_W   = 30;
-const AIR_Y     = GROUND_Y - NORMAL_H - 30; // collectible height (jump to reach)
+const GROUND_Y  = H - 35;   // feet land here
+const NORMAL_H  = 52;
+const DUCK_H    = 28;
+const BRIDE_W   = 32;
+const AIR_Y     = GROUND_Y - NORMAL_H - 44; // collectible height (jump to reach)
 
 let state = 'idle';
 let score = 0, bonus = 0, best = 0, frame = 0, speed = 4;
@@ -118,7 +118,7 @@ const bride = {
 
 function brideJump() {
   if (jumpCount < 2) {
-    bride.vy = -11.5;
+    bride.vy = -13.5;
     bride.grounded = false;
     isDucking = false;
     bride.h = NORMAL_H;
@@ -224,7 +224,7 @@ function drawGround() {
   ctx.fillRect(0, GROUND_Y + 4, W, H - GROUND_Y - 4);
   // aisle dots
   ctx.fillStyle = '#f48fb1';
-  const offset = ((frame * speed * 0.4) % 44 + 44) % 44;
+  const offset = 44 - ((frame * speed * 0.4) % 44);
   for (let x = offset; x < W; x += 44) {
     ctx.beginPath();
     ctx.arc(x, GROUND_Y + 2, 2.5, 0, Math.PI * 2);
@@ -325,10 +325,11 @@ function drawBride() {
 }
 
 function drawItem(item) {
+  // Use 'bottom' baseline so emoji sits flush at item.y + item.h (the floor)
   ctx.font = `${item.h}px serif`;
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText(item.label, item.x + item.w / 2, item.y);
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(item.label, item.x + item.w / 2, item.y + item.h);
 }
 
 function drawPetals() {
