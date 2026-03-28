@@ -1,0 +1,409 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Here Comes the Bride</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Dancing+Script:wght@600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #fdf0f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Playfair Display', serif;
+    touch-action: none;
+  }
+
+  h1 {
+    font-family: 'Dancing Script', cursive;
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    color: #c2185b;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+
+  #score-display {
+    font-size: 1rem;
+    color: #888;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+  }
+
+  #game-wrap {
+    position: relative;
+    width: min(600px, 96vw);
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    border: 2px solid #f8bbd0;
+    border-radius: 12px;
+    background: #fff9fb;
+    box-shadow: 0 8px 32px rgba(194,24,91,0.10);
+    cursor: pointer;
+  }
+
+  #message {
+    font-family: 'Dancing Script', cursive;
+    font-size: clamp(1rem, 3.5vw, 1.4rem);
+    color: #c2185b;
+    text-align: center;
+    margin-top: 10px;
+    min-height: 1.6em;
+    letter-spacing: 0.5px;
+  }
+
+  #hint {
+    font-size: 0.78rem;
+    color: #bbb;
+    text-align: center;
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<h1>💍 Here Comes the Bride</h1>
+<div id="score-display">SCORE: <span id="score">0</span> &nbsp;|&nbsp; BEST: <span id="best">0</span></div>
+
+<div id="game-wrap">
+  <canvas id="c"></canvas>
+</div>
+
+<div id="message">Tap or press Space to start!</div>
+<div id="hint">tap / space / ↑ to jump &nbsp;•&nbsp; double jump allowed</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const msg = document.getElementById('message');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+
+// --- Sizing ---
+const W = 600, H = 180;
+canvas.width = W;
+canvas.height = H;
+const GROUND = H - 30;
+
+// --- State ---
+let state = 'idle'; // idle | running | dead
+let score = 0, best = 0, frame = 0, speed = 4;
+let jumpCount = 0;
+
+// --- Bride ---
+const bride = {
+  x: 80, y: GROUND - 44, w: 28, h: 44,
+  vy: 0, grounded: true,
+  animFrame: 0, animTick: 0,
+  jump() {
+    if (jumpCount < 2) {
+      this.vy = -10;
+      this.grounded = false;
+      jumpCount++;
+    }
+  }
+};
+
+// --- Obstacles ---
+let obstacles = [];
+let nextObstacle = 90;
+
+// --- Flowers / deco particles ---
+let petals = [];
+
+function spawnObstacle() {
+  const types = ['cake', 'ex', 'heels'];
+  const type = types[Math.floor(Math.random() * types.length)];
+  const configs = {
+    cake:  { w: 22, h: 36, color: '#f8bbd0', label: '🎂' },
+    ex:    { w: 18, h: 40, color: '#ce93d8', label: '💔' },
+    heels: { w: 20, h: 28, color: '#ef9a9a', label: '👠' },
+  };
+  const c = configs[type];
+  obstacles.push({ x: W + 10, y: GROUND - c.h, ...c, type });
+}
+
+function spawnPetal() {
+  petals.push({
+    x: Math.random() * W,
+    y: -10,
+    size: 4 + Math.random() * 6,
+    speed: 0.6 + Math.random() * 1.2,
+    drift: (Math.random() - 0.5) * 0.4,
+    rot: Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - 0.5) * 0.08,
+    alpha: 0.5 + Math.random() * 0.5,
+    hue: 340 + Math.random() * 20,
+  });
+}
+
+// --- Draw helpers ---
+function drawGround() {
+  // Aisle runner
+  ctx.fillStyle = '#f8bbd0';
+  ctx.fillRect(0, GROUND + bride.h - 4, W, 4);
+  // Grass/floor base
+  ctx.fillStyle = '#fce4ec';
+  ctx.fillRect(0, GROUND + bride.h, W, H - (GROUND + bride.h));
+  // Aisle dots
+  ctx.fillStyle = '#f48fb1';
+  for (let x = (frame * speed * 0.5) % 40; x < W; x += 40) {
+    ctx.beginPath();
+    ctx.arc(x, GROUND + bride.h - 2, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawBride(b) {
+  const x = b.x, y = b.y + b.h; // y = feet position
+  const bx = x - b.w / 2;
+
+  // Dress (triangle)
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#f8bbd0';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(bx + 4, y - 20);
+  ctx.lineTo(bx - 6, y);
+  ctx.lineTo(bx + b.w + 6, y);
+  ctx.lineTo(bx + b.w - 4, y - 20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Veil
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.beginPath();
+  ctx.moveTo(bx + b.w - 6, y - 38);
+  ctx.lineTo(bx + b.w + 8, y - 30);
+  ctx.lineTo(bx + b.w + 4, y - 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Body/torso
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#f8bbd0';
+  ctx.fillRect(bx + 6, y - 36, b.w - 12, 16);
+  ctx.strokeRect(bx + 6, y - 36, b.w - 12, 16);
+
+  // Head
+  ctx.fillStyle = '#ffe0b2';
+  ctx.beginPath();
+  ctx.arc(bx + b.w / 2, y - 40, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hair
+  ctx.fillStyle = '#5d4037';
+  ctx.beginPath();
+  ctx.arc(bx + b.w / 2, y - 44, 6, Math.PI, 0);
+  ctx.fill();
+
+  // Bouquet
+  ctx.fillStyle = '#f06292';
+  ctx.beginPath();
+  ctx.arc(bx + 2, y - 24, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff176';
+  ctx.beginPath();
+  ctx.arc(bx + 2, y - 24, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Running legs
+  b.animTick++;
+  if (b.grounded && b.animTick % 6 === 0) b.animFrame = (b.animFrame + 1) % 4;
+  const legOffset = b.grounded ? [Math.sin(b.animFrame * 1.5) * 5, -Math.sin(b.animFrame * 1.5) * 5] : [0, 0];
+  ctx.strokeStyle = '#f8bbd0';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(bx + 8, y - 4);
+  ctx.lineTo(bx + 6 + legOffset[0], y + 8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bx + b.w - 8, y - 4);
+  ctx.lineTo(bx + b.w - 6 + legOffset[1], y + 8);
+  ctx.stroke();
+}
+
+function drawObstacle(o) {
+  ctx.font = `${o.h * 0.9}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(o.label, o.x + o.w / 2, o.y + o.h + 2);
+}
+
+function drawPetals() {
+  petals.forEach(p => {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle = `hsl(${p.hue}, 80%, 80%)`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.size / 2, p.size, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+  ctx.globalAlpha = 1;
+}
+
+function drawBackground() {
+  // Sky gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, GROUND);
+  grad.addColorStop(0, '#fff9fb');
+  grad.addColorStop(1, '#fce4ec');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, GROUND + bride.h);
+
+  // Decorative hearts
+  ctx.font = '14px serif';
+  ctx.textAlign = 'left';
+  ctx.globalAlpha = 0.15;
+  for (let i = 0; i < 5; i++) {
+    ctx.fillText('♥', ((i * 130 - (frame * speed * 0.2)) % (W + 40) + W + 40) % (W + 40) - 20, 25 + i * 10);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// --- Collision (AABB) ---
+// bride: x is center, y is top of sprite, h is full height
+// obstacle: x is left edge, y is top edge
+function collides(a, o) {
+  const pad = 5;
+  const aLeft   = a.x - a.w / 2 + pad;
+  const aRight  = a.x + a.w / 2 - pad;
+  const aTop    = a.y + pad;
+  const aBottom = a.y + a.h - pad;
+
+  const oLeft   = o.x + pad;
+  const oRight  = o.x + o.w - pad;
+  const oTop    = o.y + pad;
+  const oBottom = o.y + o.h;
+
+  return aLeft < oRight && aRight > oLeft && aTop < oBottom && aBottom > oTop;
+}
+
+// --- Main loop ---
+function update() {
+  if (state !== 'running') return;
+  frame++;
+  score = Math.floor(frame / 6);
+  scoreEl.textContent = score;
+  speed = 4 + Math.floor(score / 80) * 0.5;
+
+  // Bride physics
+  bride.vy += 0.55;
+  bride.y += bride.vy;
+  const groundY = GROUND - bride.h;
+  if (bride.y >= groundY) {
+    bride.y = groundY;
+    bride.vy = 0;
+    bride.grounded = true;
+    jumpCount = 0;
+  }
+
+  // Obstacles
+  nextObstacle--;
+  if (nextObstacle <= 0) {
+    spawnObstacle();
+    nextObstacle = 70 + Math.floor(Math.random() * 60) - Math.min(20, Math.floor(score / 100));
+  }
+  obstacles.forEach(o => o.x -= speed);
+  obstacles = obstacles.filter(o => o.x > -60);
+
+  // Collision check
+  for (const o of obstacles) {
+    if (collides(bride, o)) { die(); return; }
+  }
+
+  // Petals
+  if (frame % 18 === 0) spawnPetal();
+  petals.forEach(p => {
+    p.y += p.speed;
+    p.x += p.drift;
+    p.rot += p.rotSpeed;
+  });
+  petals = petals.filter(p => p.y < H + 20);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  drawPetals();
+  drawGround();
+  obstacles.forEach(drawObstacle);
+  drawBride(bride);
+
+  if (state === 'idle') {
+    ctx.fillStyle = 'rgba(255,240,245,0.7)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.font = "bold 22px 'Dancing Script', cursive";
+    ctx.fillStyle = '#c2185b';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('💍 Here Comes the Bride 💍', W / 2, H / 2 - 12);
+    ctx.font = "14px 'Playfair Display', serif";
+    ctx.fillStyle = '#e91e8c';
+    ctx.fillText('Tap or press Space to start!', W / 2, H / 2 + 18);
+  }
+
+  if (state === 'dead') {
+    ctx.fillStyle = 'rgba(255,240,245,0.75)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.font = "bold 20px 'Dancing Script', cursive";
+    ctx.fillStyle = '#c2185b';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Oh no! 💔 The wedding is ruined!', W / 2, H / 2 - 14);
+    ctx.font = "13px 'Playfair Display', serif";
+    ctx.fillStyle = '#888';
+    ctx.fillText(`Score: ${score}  •  Best: ${best}  •  Tap to retry`, W / 2, H / 2 + 14);
+  }
+}
+
+function die() {
+  state = 'dead';
+  if (score > best) { best = score; bestEl.textContent = best; }
+  msg.textContent = score > 20 ? '💍 Almost made it to the altar!' : '🌸 Try again!';
+}
+
+function startGame() {
+  state = 'running';
+  frame = 0; score = 0; speed = 4;
+  obstacles = []; petals = [];
+  bride.y = GROUND - bride.h; bride.vy = 0; bride.grounded = true;
+  jumpCount = 0;
+  msg.textContent = 'Jump over the obstacles!';
+  scoreEl.textContent = '0';
+}
+
+function handleInput() {
+  if (state === 'idle' || state === 'dead') startGame();
+  else if (state === 'running') bride.jump();
+}
+
+// --- Input ---
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); handleInput(); }
+});
+canvas.addEventListener('pointerdown', e => { e.preventDefault(); handleInput(); });
+
+// --- Game loop ---
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
